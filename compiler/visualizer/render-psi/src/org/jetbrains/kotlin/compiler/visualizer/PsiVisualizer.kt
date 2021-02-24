@@ -268,6 +268,32 @@ class PsiVisualizer(private val file: KtFile, analysisResult: AnalysisResult) : 
             return this.name.asString().contains("SPECIAL-FUNCTION")
         }
 
+//        private fun String.reorganizeInnerTypeParameters(): String {
+//            if (!this.contains("<")) return this
+//
+//            var sb = StringBuilder(this)
+//            var count = 1
+//            var begin = sb.indexOf("<") + 1
+//            val parameters = mutableListOf<String>()
+//            var index = begin
+//            while (index != 0 && index < sb.length) {
+//                if (sb[index] == '<') count++
+//                if (sb[index] == '>') count--
+//                if (count == 0) {
+//                    val localParameters = sb.subSequence(begin, index)
+//                    sb = StringBuilder(sb.removeRange(IntRange(begin - 1, index)))
+//                    parameters.addAll(0, localParameters.split(',').map { it.trim() })
+//                    begin = sb.indexOf("<") + 1
+//                    index = begin
+//                    count = 1
+//                    continue
+//                }
+//                index++
+//            }
+//
+//            return sb.toString() + parameters.joinToString(prefix = "<", postfix = ">")
+//        }
+
         fun render(declarationDescriptor: DeclarationDescriptor): String {
             if (declarationDescriptor is CallableDescriptor && declarationDescriptor.isSpecial()) {
                 return if (needToRenderSpecialFun) this.renderSpecialFunction(declarationDescriptor) else ""
@@ -279,7 +305,7 @@ class PsiVisualizer(private val file: KtFile, analysisResult: AnalysisResult) : 
 
         fun renderType(type: KotlinType): String {
             if (type.toString() == SpecialNames.NO_NAME_PROVIDED.asString()) return "<anonymous>"
-            return typeRenderer.renderType(type)
+            return typeRenderer.renderType(type)//.reorganizeInnerTypeParameters()
         }
 
         private fun renderName(descriptor: DeclarationDescriptor, hasReceiver: Boolean = false): String {
