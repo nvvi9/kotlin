@@ -43,10 +43,11 @@ object CirTypeFactory {
     private val typeParameterTypeInterner = Interner<CirTypeParameterType>()
 
     fun create(source: KmType, typeResolver: CirTypeResolver, useAbbreviation: Boolean = true): CirType {
+        val isMarkedNullable = Flag.Type.IS_NULLABLE(source.flags)
+
         return when (val classifier = source.classifier) {
             is KmClassifier.Class -> {
                 val classId = CirEntityId.create(classifier.name)
-                val clazz: CirProvided.Class = typeResolver.resolveClassifier(classId)
 
                 val outerType = source.outerType?.let { outerType ->
                     val outerClassType = create(outerType, typeResolver, useAbbreviation)
@@ -59,19 +60,27 @@ object CirTypeFactory {
                 createClassType(
                     classId = classId,
                     outerType = outerType,
-                    visibility = clazz.visibility,
+                    visibility = typeResolver.resolveClassVisibility(classId),
                     arguments = createArguments(source.arguments, typeResolver, useAbbreviation),
-                    isMarkedNullable = Flag.Type.IS_NULLABLE(source.flags)
+                    isMarkedNullable = isMarkedNullable
                 )
             }
             is KmClassifier.TypeAlias -> {
-                // TODO: implement
-                StandardTypes.NON_EXISTING_TYPE
+                val typeAliasId = CirEntityId.create(classifier.name)
+
+                val arguments = createArguments(source.arguments, typeResolver, useAbbreviation)
+
+                createTypeAliasType(
+                    typeAliasId = typeAliasId,
+                    underlyingType = computeUnderlyingType(typeAliasId, typeResolver, arguments, isMarkedNullable),
+                    arguments = arguments,
+                    isMarkedNullable = isMarkedNullable
+                )
             }
             is KmClassifier.TypeParameter -> {
                 createTypeParameterType(
                     index = typeResolver.resolveTypeParameterIndex(classifier.id),
-                    isMarkedNullable = Flag.Type.IS_NULLABLE(source.flags)
+                    isMarkedNullable = isMarkedNullable
                 )
             }
         }
@@ -299,6 +308,10 @@ abstract class CirTypeResolver : TypeParameterResolver {
         return classifier
     }
 
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun resolveClassVisibility(classId: CirEntityId): DescriptorVisibility =
+        resolveClassifier<CirProvided.Class>(classId).visibility
+
     abstract fun resolveTypeParameterIndex(id: TypeParameterId): TypeParameterIndex
     abstract override fun resolveTypeParameter(id: TypeParameterId): KmTypeParameter
 
@@ -343,5 +356,44 @@ abstract class CirTypeResolver : TypeParameterResolver {
 
     companion object {
         fun create(providedClassifiers: CirProvidedClassifiers): CirTypeResolver = TopLevel(providedClassifiers)
+    }
+}
+
+private fun computeUnderlyingType(
+    typeAliasId: CirEntityId,
+    typeResolver: CirTypeResolver,
+    arguments: List<CirTypeProjection>,
+    isMarkedNullable: Boolean
+): CirClassOrTypeAliasType {
+    val typeAlias: CirProvided.TypeAlias = typeResolver.resolveClassifier(typeAliasId)
+    val underlyingType = typeAlias.underlyingType
+
+    val underlyingTypeArguments = emptyList<CirTypeProjection>() // TODO
+    val underlyingTypeIsMarkedNullable = isMarkedNullable || underlyingType.isMarkedNullable
+
+    return when (underlyingType) {
+        is CirProvided.ClassType -> {
+            CirTypeFactory.createClassType(
+                classId = underlyingType.classId,
+                outerType = null, // TODO
+                visibility = typeResolver.resolveClassVisibility(underlyingType.classId),
+                arguments = underlyingTypeArguments,
+                isMarkedNullable = underlyingTypeIsMarkedNullable
+            )
+        }
+        is CirProvided.TypeAliasType -> {
+            CirTypeFactory.createTypeAliasType(
+                typeAliasId = underlyingType.typeAliasId,
+                underlyingType = computeUnderlyingType(
+                    typeAliasId = underlyingType.typeAliasId,
+                    typeResolver = typeResolver,
+                    arguments = underlyingTypeArguments,
+                    isMarkedNullable = underlyingTypeIsMarkedNullable
+                ),
+                arguments = underlyingTypeArguments,
+                isMarkedNullable = underlyingTypeIsMarkedNullable
+            )
+        }
+        is CirProvided.TypeParameterType -> error("Unexpected underlying type of type alias $typeAliasId: $underlyingType")
     }
 }
