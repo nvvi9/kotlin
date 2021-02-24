@@ -45,15 +45,24 @@ object CirTypeFactory {
     fun create(source: KmType, typeResolver: CirTypeResolver, useAbbreviation: Boolean = true): CirType {
         return when (val classifier = source.classifier) {
             is KmClassifier.Class -> {
-                // TODO: implement
-                StandardTypes.NON_EXISTING_TYPE
-//                createClassType(
-//                    classId = CirEntityId.create(classifier.name),
-//                    outerType = null, // TODO
-//                    visibility = decodeVisibility(source.flags),
-//                    arguments = createArguments(source.arguments, useAbbreviation, providedClassifiers),
-//                    isMarkedNullable = Flag.Type.IS_NULLABLE(source.flags)
-//                )
+                val classId = CirEntityId.create(classifier.name)
+                val clazz: CirProvided.Class = typeResolver.resolveClassifier(classId)
+
+                val outerType = source.outerType?.let { outerType ->
+                    val outerClassType = create(outerType, typeResolver, useAbbreviation)
+                    check(outerClassType is CirClassType) {
+                        "Outer type of $classId is not a class: $outerClassType"
+                    }
+                    outerClassType
+                }
+
+                createClassType(
+                    classId = classId,
+                    outerType = outerType,
+                    visibility = clazz.visibility,
+                    arguments = createArguments(source.arguments, typeResolver, useAbbreviation),
+                    isMarkedNullable = Flag.Type.IS_NULLABLE(source.flags)
+                )
             }
             is KmClassifier.TypeAlias -> {
                 // TODO: implement
