@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.test.frontend.fir.FirFrontendFacade
 import org.jetbrains.kotlin.test.frontend.fir.FirOutputArtifact
 import org.jetbrains.kotlin.test.frontend.fir.handlers.FirAnalysisHandler
 import org.jetbrains.kotlin.test.model.*
+import org.jetbrains.kotlin.test.services.TestServices
 import org.jetbrains.kotlin.test.services.defaultDirectives
 import org.jetbrains.kotlin.visualizer.AbstractVisualizer
 import org.jetbrains.kotlin.visualizer.VisualizerDirectives
@@ -19,31 +20,28 @@ import java.io.File
 abstract class AbstractFirVisualizerTest : AbstractVisualizer() {
     override val frontendKind: FrontendKind<*> = FrontendKinds.FIR
     override val frontendFacade: Constructor<FrontendFacade<*>> = ::FirFrontendFacade
+    override val handler: Constructor<FrontendOutputHandler<*>> = ::FirOutputHandler
 
-    override val handler: Constructor<FrontendOutputHandler<*>> = {
-        object : FirAnalysisHandler(it) {
-            override fun processModule(module: TestModule, info: FirOutputArtifact) {
-                val renderer = FirVisualizer(info.firFiles.values.first())
-                val firRenderResult = renderer.render()
+    class FirOutputHandler(private val it: TestServices) : FirAnalysisHandler(it) {
+        override fun processModule(module: TestModule, info: FirOutputArtifact) {
+            val renderer = FirVisualizer(info.firFiles.values.first())
+            val firRenderResult = renderer.render()
 
-                val replaceFrom = it.defaultDirectives[VisualizerDirectives.TEST_FILE_PATH].first()
-                val replaceTo = it.defaultDirectives[VisualizerDirectives.EXPECTED_FILE_PATH].first()
-                val path = module.files.first().originalFile.absolutePath.replace(replaceFrom, replaceTo)
-                val expectedText = File(path).readLines()
-                if (expectedText[0].startsWith("// FIR_IGNORE")) {
-                    assertions.assertFalse(expectedText.drop(1).joinToString("\n") == firRenderResult.trim()) {
-                        "Files are identical, please delete ignore directive"
-                    }
-                    return
+            val replaceFrom = it.defaultDirectives[VisualizerDirectives.TEST_FILE_PATH].first()
+            val replaceTo = it.defaultDirectives[VisualizerDirectives.EXPECTED_FILE_PATH].first()
+            val path = module.files.first().originalFile.absolutePath.replace(replaceFrom, replaceTo)
+            val expectedText = File(path).readLines()
+            if (expectedText[0].startsWith("// FIR_IGNORE")) {
+                assertions.assertFalse(expectedText.drop(1).joinToString("\n") == firRenderResult.trim()) {
+                    "Files are identical, please delete ignore directive"
                 }
-                assertions.assertEqualsToFile(File(path), firRenderResult) { text ->
-                    text.replace("// FIR_IGNORE\n", "")
-                }
+                return
             }
-
-            override fun processAfterAllModules(someAssertionWasFailed: Boolean) {
-
+            assertions.assertEqualsToFile(File(path), firRenderResult) { text ->
+                text.replace("// FIR_IGNORE\n", "")
             }
         }
+
+        override fun processAfterAllModules(someAssertionWasFailed: Boolean) {}
     }
 }
