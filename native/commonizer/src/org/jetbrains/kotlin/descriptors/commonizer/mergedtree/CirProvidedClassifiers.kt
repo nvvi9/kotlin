@@ -59,31 +59,44 @@ object CirProvided {
         val typeParameters: Collection<TypeParameter>
     }
 
-    class Class(
+    data class Class(
         override val typeParameters: Collection<TypeParameter>,
         val visibility: DescriptorVisibility
     ) : Classifier
 
-    class TypeAlias(
+    data class TypeAlias(
         override val typeParameters: Collection<TypeParameter>,
         val underlyingType: Type
     ) : Classifier
 
     /* Type parameter */
-    class TypeParameter(val id: Int, val variance: Variance)
+    data class TypeParameter(val id: Int, val variance: Variance)
 
     /* Types */
     sealed interface Type {
         val isMarkedNullable: Boolean
     }
 
-    class TypeParameterType(val id: Int, override val isMarkedNullable: Boolean) : Type
-    class ClassType(val classId: CirEntityId, val arguments: List<TypeProjection>, override val isMarkedNullable: Boolean) : Type
-    class TypeAliasType(val typeAliasId: CirEntityId, val arguments: List<TypeProjection>, override val isMarkedNullable: Boolean) : Type
+    data class TypeParameterType(
+        val id: Int,
+        override val isMarkedNullable: Boolean
+    ) : Type
+
+    data class ClassType(
+        val classId: CirEntityId,
+        val arguments: List<TypeProjection>,
+        override val isMarkedNullable: Boolean
+    ) : Type
+
+    data class TypeAliasType(
+        val typeAliasId: CirEntityId,
+        val arguments: List<TypeProjection>,
+        override val isMarkedNullable: Boolean
+    ) : Type
 
     /* Type projections */
     sealed interface TypeProjection
     object StarTypeProjection : TypeProjection
-    class RegularTypeProjection(val variance: Variance, val type: Type) : TypeProjection
+    data class RegularTypeProjection(val variance: Variance, val type: Type) : TypeProjection
 }
 
