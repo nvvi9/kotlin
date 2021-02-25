@@ -129,11 +129,21 @@ private class TypeReadContext(
 private fun readType(typeProto: ProtoBuf.Type, context: TypeReadContext): CirProvided.Type =
     with(typeProto.abbreviatedType(context.types) ?: typeProto) {
         when {
-            hasClassName() -> CirProvided.ClassType(
-                classId = CirEntityId.create(context.strings.getQualifiedClassName(className)),
-                arguments = readTypeArguments(argumentList, context),
-                isMarkedNullable = nullable
-            )
+            hasClassName() -> {
+                val classId = CirEntityId.create(context.strings.getQualifiedClassName(className))
+                val outerType = typeProto.outerType(context.types)?.let { outerType ->
+                    val outerClassType = readType(outerType, context)
+                    check(outerClassType is CirProvided.ClassType) { "Outer type of $classId is not a class: $outerClassType" }
+                    outerClassType
+                }
+
+                CirProvided.ClassType(
+                    classId = classId,
+                    outerType = outerType,
+                    arguments = readTypeArguments(argumentList, context),
+                    isMarkedNullable = nullable
+                )
+            }
             hasTypeAliasName() -> CirProvided.TypeAliasType(
                 typeAliasId = CirEntityId.create(context.strings.getQualifiedClassName(typeAliasName)),
                 arguments = readTypeArguments(argumentList, context),

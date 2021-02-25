@@ -84,6 +84,7 @@ object CirProvided {
 
     data class ClassType(
         val classId: CirEntityId,
+        val outerType: ClassType?,
         val arguments: List<TypeProjection>,
         override val isMarkedNullable: Boolean
     ) : Type
