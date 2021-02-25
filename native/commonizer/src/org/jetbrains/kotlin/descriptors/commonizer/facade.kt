@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.descriptors.commonizer.ResultsConsumer.Status
 import org.jetbrains.kotlin.descriptors.commonizer.cir.*
 import org.jetbrains.kotlin.descriptors.commonizer.cir.factory.CirTypeFactory
 import org.jetbrains.kotlin.descriptors.commonizer.core.CommonizationVisitor
+import org.jetbrains.kotlin.descriptors.commonizer.core.computeExpandedType
 import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.*
 import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.CirNode.Companion.dimension
 import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.CirTreeMerger.CirTreeMergeResult
@@ -23,6 +24,7 @@ import org.jetbrains.kotlin.library.SerializedMetadata
 import org.jetbrains.kotlin.storage.LockBasedStorageManager
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.types.Variance
+import sun.rmi.rmic.iiop.ClassType
 import kotlin.math.max
 
 fun runCommonization(parameters: CommonizerParameters) {
@@ -164,13 +166,84 @@ private fun diffTrees(oldRootNode: CirRootNode, newRootNode: CirRootNode) {
             mismatches.add("$where > $what: $old != $new")
     }
 
+    fun isSameType(old: CirType, new: CirType): Boolean {
+        if (old == new || new == CirTypeFactory.StandardTypes.NON_EXISTING_TYPE)
+            return true
+
+        if (old is CirClassOrTypeAliasType && new is CirClassOrTypeAliasType) {
+            if (old.classifierId != new.classifierId
+                || old.arguments.size != new.arguments.size
+                || old.isMarkedNullable != new.isMarkedNullable
+            ) {
+                return false
+            }
+
+            for (i in old.arguments.indices) {
+                val oldArgument = old.arguments[i]
+                val newArgument = new.arguments[i]
+
+                if (oldArgument is CirStarTypeProjection && newArgument is CirStarTypeProjection) {
+                    // OK
+                } else if (oldArgument is CirTypeProjectionImpl && newArgument is CirTypeProjectionImpl) {
+                    if (oldArgument.projectionKind != newArgument.projectionKind || !isSameType(oldArgument.type, newArgument.type)) {
+                        return false
+                    }
+                } else {
+                    return false
+                }
+            }
+        }
+
+        if (old is CirClassType && new is CirClassType) {
+            if (old.visibility != new.visibility) {
+                return false
+            }
+
+            val oldOuterType = old.outerType
+            val newOuterType = new.outerType
+
+            if (oldOuterType == null && newOuterType == null) {
+                // OK
+            } else if (oldOuterType != null && newOuterType != null) {
+                if (!isSameType(oldOuterType, newOuterType)) {
+                    return false
+                }
+            } else {
+                return false
+            }
+
+            return true
+        }
+
+        if (old is CirTypeAliasType && new is CirTypeAliasType) {
+            val oldUnderlyingType = old.underlyingType
+            val newUnderlyingType = new.underlyingType
+
+            return when (oldUnderlyingType) {
+                is CirClassType -> when (newUnderlyingType) {
+                    is CirClassType -> isSameType(oldUnderlyingType, newUnderlyingType)
+                    is CirTypeAliasType -> {
+                        val newExpandedType = computeExpandedType(new)
+                        isSameType(oldUnderlyingType, newExpandedType)
+                    }
+                }
+                is CirTypeAliasType -> when (newUnderlyingType) {
+                    is CirClassType -> false
+                    is CirTypeAliasType -> isSameType(oldUnderlyingType, newUnderlyingType)
+                }
+            }
+        }
+
+        return false
+    }
+
     fun checkType(where: String, what: String, old: CirType?, new: CirType?) {
         if (old == null && new == null)
             return
 
         if (old == null || new == null) {
             mismatches.add("$where > $what: old=${old.missing()}, new=${new.missing()}")
-        } else if (old == new || new == CirTypeFactory.StandardTypes.NON_EXISTING_TYPE) {
+        } else if (isSameType(old, new)) {
             return
         } else {
             mismatches.add("$where > $what: $old != $new")
