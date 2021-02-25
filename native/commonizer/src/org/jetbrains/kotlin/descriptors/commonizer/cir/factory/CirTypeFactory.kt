@@ -27,15 +27,6 @@ object CirTypeFactory {
             arguments = emptyList(),
             isMarkedNullable = false
         )
-
-        // just a temporary solution until full type resolution is implemented
-        internal val NON_EXISTING_TYPE = createClassType(
-            classId = CirEntityId.create("non/existing/type/ABCDEF01234"),
-            outerType = null,
-            visibility = DescriptorVisibilities.PUBLIC,
-            arguments = emptyList(),
-            isMarkedNullable = false
-        )
     }
 
     private val classTypeInterner = Interner<CirClassType>()

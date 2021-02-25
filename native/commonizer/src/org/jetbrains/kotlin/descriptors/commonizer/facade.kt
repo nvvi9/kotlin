@@ -13,7 +13,6 @@ import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.commonizer.ResultsConsumer.ModuleResult
 import org.jetbrains.kotlin.descriptors.commonizer.ResultsConsumer.Status
 import org.jetbrains.kotlin.descriptors.commonizer.cir.*
-import org.jetbrains.kotlin.descriptors.commonizer.cir.factory.CirTypeFactory
 import org.jetbrains.kotlin.descriptors.commonizer.core.CommonizationVisitor
 import org.jetbrains.kotlin.descriptors.commonizer.core.computeExpandedType
 import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.*
@@ -24,7 +23,6 @@ import org.jetbrains.kotlin.library.SerializedMetadata
 import org.jetbrains.kotlin.storage.LockBasedStorageManager
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.types.Variance
-import sun.rmi.rmic.iiop.ClassType
 import kotlin.math.max
 
 fun runCommonization(parameters: CommonizerParameters) {
@@ -167,7 +165,7 @@ private fun diffTrees(oldRootNode: CirRootNode, newRootNode: CirRootNode) {
     }
 
     fun isSameType(old: CirType, new: CirType): Boolean {
-        if (old == new || new == CirTypeFactory.StandardTypes.NON_EXISTING_TYPE)
+        if (old == new)
             return true
 
         if (old is CirClassOrTypeAliasType && new is CirClassOrTypeAliasType) {
