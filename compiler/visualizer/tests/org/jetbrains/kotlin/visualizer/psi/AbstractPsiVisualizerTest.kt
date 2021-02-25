@@ -12,12 +12,11 @@ import org.jetbrains.kotlin.test.frontend.classic.ClassicFrontendOutputArtifact
 import org.jetbrains.kotlin.test.frontend.classic.handlers.ClassicFrontendAnalysisHandler
 import org.jetbrains.kotlin.test.model.*
 import org.jetbrains.kotlin.test.services.TestServices
-import org.jetbrains.kotlin.test.services.defaultDirectives
-import org.jetbrains.kotlin.visualizer.AbstractVisualizer
+import org.jetbrains.kotlin.visualizer.AbstractVisualizerTest
 import org.jetbrains.kotlin.visualizer.VisualizerDirectives
 import java.io.File
 
-abstract class AbstractPsiVisualizerTest : AbstractVisualizer() {
+abstract class AbstractPsiVisualizerTest : AbstractVisualizerTest() {
     override val frontendKind: FrontendKind<*> = FrontendKinds.ClassicFrontend
     override val frontendFacade: Constructor<FrontendFacade<*>> = ::ClassicFrontendFacade
     override val handler: Constructor<FrontendOutputHandler<*>> = ::PsiOutputHandler
@@ -27,8 +26,8 @@ abstract class AbstractPsiVisualizerTest : AbstractVisualizer() {
             val renderer = PsiVisualizer(info.ktFiles.values.first(), info.analysisResult)
             val psiRenderResult = renderer.render()
 
-            val replaceFrom = it.defaultDirectives[VisualizerDirectives.TEST_FILE_PATH].first()
-            val replaceTo = it.defaultDirectives[VisualizerDirectives.EXPECTED_FILE_PATH].first()
+            val replaceFrom = module.directives[VisualizerDirectives.TEST_FILE_PATH].first()
+            val replaceTo = module.directives[VisualizerDirectives.EXPECTED_FILE_PATH].first()
             val path = module.files.first().originalFile.absolutePath.replace(replaceFrom, replaceTo)
             assertions.assertEqualsToFile(File(path), psiRenderResult) { text ->
                 text.replace("// FIR_IGNORE\n", "")

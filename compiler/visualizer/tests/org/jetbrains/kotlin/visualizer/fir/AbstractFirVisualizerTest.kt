@@ -12,12 +12,11 @@ import org.jetbrains.kotlin.test.frontend.fir.FirOutputArtifact
 import org.jetbrains.kotlin.test.frontend.fir.handlers.FirAnalysisHandler
 import org.jetbrains.kotlin.test.model.*
 import org.jetbrains.kotlin.test.services.TestServices
-import org.jetbrains.kotlin.test.services.defaultDirectives
-import org.jetbrains.kotlin.visualizer.AbstractVisualizer
+import org.jetbrains.kotlin.visualizer.AbstractVisualizerTest
 import org.jetbrains.kotlin.visualizer.VisualizerDirectives
 import java.io.File
 
-abstract class AbstractFirVisualizerTest : AbstractVisualizer() {
+abstract class AbstractFirVisualizerTest : AbstractVisualizerTest() {
     override val frontendKind: FrontendKind<*> = FrontendKinds.FIR
     override val frontendFacade: Constructor<FrontendFacade<*>> = ::FirFrontendFacade
     override val handler: Constructor<FrontendOutputHandler<*>> = ::FirOutputHandler
@@ -27,8 +26,8 @@ abstract class AbstractFirVisualizerTest : AbstractVisualizer() {
             val renderer = FirVisualizer(info.firFiles.values.first())
             val firRenderResult = renderer.render()
 
-            val replaceFrom = it.defaultDirectives[VisualizerDirectives.TEST_FILE_PATH].first()
-            val replaceTo = it.defaultDirectives[VisualizerDirectives.EXPECTED_FILE_PATH].first()
+            val replaceFrom = module.directives[VisualizerDirectives.TEST_FILE_PATH].first()
+            val replaceTo = module.directives[VisualizerDirectives.EXPECTED_FILE_PATH].first()
             val path = module.files.first().originalFile.absolutePath.replace(replaceFrom, replaceTo)
             val expectedText = File(path).readLines()
             if (expectedText[0].startsWith("// FIR_IGNORE")) {
