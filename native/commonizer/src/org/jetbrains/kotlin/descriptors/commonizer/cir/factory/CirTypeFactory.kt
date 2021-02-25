@@ -455,13 +455,25 @@ private fun computeUnderlyingTypeArguments(
     underlyingTypeArguments: List<CirProvided.TypeProjection>,
     typeResolver: CirTypeResolver
 ): List<CirTypeProjection> {
-    check(relevantTypeAliasTypeParameters.size == underlyingTypeArguments.size)
+    check(relevantTypeAliasTypeParameters.size == underlyingTypeArguments.size) {
+        "Failed"
+    }
 
     return underlyingTypeArguments.compactMapIndexed { index, underlyingTypeArgument ->
         when (underlyingTypeArgument) {
             is CirProvided.RegularTypeProjection -> {
-                val argument = when (val underlyingTypeArgumentType = underlyingTypeArgument.type) {
-                    is CirProvided.ClassType -> TODO()
+                val argument: CirTypeProjection = when (val underlyingTypeArgumentType = underlyingTypeArgument.type) {
+                    is CirProvided.ClassType -> {
+                        computeUnderlyingClassType(
+                            underlyingType = underlyingTypeArgumentType,
+                            relevantTypeAliasTypeParameters = emptyList(), // TODO
+                            typeAliasTypeArguments = emptyList(), // TODO
+                            typeAliasTypeIsMarkedNullable = underlyingTypeArgumentType.isMarkedNullable,
+                            typeResolver = typeResolver
+                        )
+
+                        TODO()
+                    }
                     is CirProvided.TypeAliasType -> TODO()
                     is CirProvided.TypeParameterType -> {
                         val argumentIndex = typeResolver.resolveTypeParameterIndex(underlyingTypeArgumentType.id)
