@@ -56,16 +56,16 @@ interface CirProvidedClassifiers {
 object CirProvided {
     /* Classifiers */
     sealed interface Classifier {
-        val typeParameters: Collection<TypeParameter>
+        val typeParameters: List<TypeParameter>
     }
 
     data class Class(
-        override val typeParameters: Collection<TypeParameter>,
+        override val typeParameters: List<TypeParameter>,
         val visibility: DescriptorVisibility
     ) : Classifier
 
     data class TypeAlias(
-        override val typeParameters: Collection<TypeParameter>,
+        override val typeParameters: List<TypeParameter>,
         val underlyingType: Type
     ) : Classifier
 
