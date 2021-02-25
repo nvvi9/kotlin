@@ -24,12 +24,13 @@ internal val DEPRECATED_ANNOTATION_CLASS_ID: CirEntityId = CirEntityId.create(DE
 internal const val ANY_CLASS_FULL_NAME: ClassName = "kotlin/Any"
 internal val ANY_CLASS_ID: CirEntityId = CirEntityId.create(ANY_CLASS_FULL_NAME)
 
-internal val NOTHING_CLASS_ID: CirEntityId = CirEntityId.create("kotlin/Nothing")
-
 internal val SPECIAL_CLASS_WITHOUT_SUPERTYPES_CLASS_IDS: List<CirEntityId> = listOf(
     ANY_CLASS_ID,
-    NOTHING_CLASS_ID
+    CirEntityId.create("kotlin/Nothing")
 )
+
+// illegal Kotlin classifier name, for special purposes only
+internal val NON_EXISTING_CLASSIFIER_ID = CirEntityId.create("$0")
 
 internal val SPECIAL_CLASS_WITHOUT_SUPERTYPES_CLASS_NAMES: List<ClassName> =
     SPECIAL_CLASS_WITHOUT_SUPERTYPES_CLASS_IDS.map(CirEntityId::toString)

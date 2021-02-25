@@ -71,7 +71,7 @@ object CirAnnotationFactory {
                 CirTypeProjectionImpl(
                     projectionKind = typeParameter.variance,
                     type = CirTypeFactory.createTypeParameterType(
-                        index = typeParameter.id,
+                        index = typeParameter.index,
                         isMarkedNullable = false
                     )
                 )

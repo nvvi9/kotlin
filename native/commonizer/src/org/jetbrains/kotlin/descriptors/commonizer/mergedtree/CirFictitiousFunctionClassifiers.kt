@@ -33,7 +33,7 @@ object CirFictitiousFunctionClassifiers : CirProvidedClassifiers {
     private inline fun buildFictitiousFunctionClass(prefix: String, arity: Int, consumer: (CirEntityId, CirProvided.Class) -> Unit) {
         val typeParameters = List(arity + 1) { index ->
             CirProvided.TypeParameter(
-                id = index,
+                index = index,
                 variance = if (index == arity) Variance.OUT_VARIANCE else Variance.IN_VARIANCE
             )
         }

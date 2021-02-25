@@ -70,7 +70,7 @@ object CirProvided {
     ) : Classifier
 
     /* Type parameter */
-    data class TypeParameter(val id: Int, val variance: Variance)
+    data class TypeParameter(val index: Int, val variance: Variance)
 
     /* Types */
     sealed interface Type {
@@ -78,7 +78,7 @@ object CirProvided {
     }
 
     data class TypeParameterType(
-        val id: Int,
+        val index: Int,
         override val isMarkedNullable: Boolean
     ) : Type
 

@@ -352,7 +352,7 @@ private class ClassesToProcess {
         ) : ClassEntry()
     }
 
-    // key = parent class ID (or kotlin/Nothing for top-level classes)
+    // key = parent class ID (or NON_EXISTING_CLASSIFIER_ID for top-level classes)
     // value = classes under this parent class (MutableList to preserve order of classes)
     private val groupedByParentClassId = FactoryMap.create<CirEntityId, MutableList<ClassEntry>> { ArrayList() }
 
@@ -362,7 +362,7 @@ private class ClassesToProcess {
 
         fragment.classes.forEach { clazz ->
             val classId: CirEntityId = CirEntityId.create(clazz.name)
-            val parentClassId: CirEntityId = classId.getParentEntityId() ?: NOTHING_CLASS_ID
+            val parentClassId: CirEntityId = classId.getParentEntityId() ?: NON_EXISTING_CLASSIFIER_ID
 
             if (Flag.Class.IS_ENUM_CLASS(clazz.flags)) {
                 clazz.klibEnumEntries.forEach { entry ->
@@ -384,6 +384,6 @@ private class ClassesToProcess {
     }
 
     fun forEachClassInScope(parentClassId: CirEntityId?, block: (ClassEntry) -> Unit) {
-        groupedByParentClassId[parentClassId ?: NOTHING_CLASS_ID]?.forEach { classEntry -> block(classEntry) }
+        groupedByParentClassId[parentClassId ?: NON_EXISTING_CLASSIFIER_ID]?.forEach { classEntry -> block(classEntry) }
     }
 }

@@ -476,8 +476,8 @@ private fun computeUnderlyingTypeArguments(
                     }
                     is CirProvided.TypeAliasType -> TODO()
                     is CirProvided.TypeParameterType -> {
-                        val argumentIndex = typeResolver.resolveTypeParameterIndex(underlyingTypeArgumentType.id)
-                        typeAliasTypeArguments.getOrNull(argumentIndex) ?: error("No substitution argument found with index $argumentIndex")
+                        typeAliasTypeArguments.getOrNull(underlyingTypeArgumentType.index)
+                            ?: error("No substitution argument found with index ${underlyingTypeArgumentType.index}")
                     }
                 }
 

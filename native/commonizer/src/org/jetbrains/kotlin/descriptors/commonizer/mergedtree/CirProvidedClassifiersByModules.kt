@@ -5,12 +5,15 @@
 
 package org.jetbrains.kotlin.descriptors.commonizer.mergedtree
 
+import com.intellij.util.containers.FactoryMap
 import gnu.trove.THashMap
 import org.jetbrains.kotlin.descriptors.commonizer.ModulesProvider
 import org.jetbrains.kotlin.descriptors.commonizer.cir.CirEntityId
 import org.jetbrains.kotlin.descriptors.commonizer.cir.CirName
 import org.jetbrains.kotlin.descriptors.commonizer.cir.CirPackageName
+import org.jetbrains.kotlin.descriptors.commonizer.utils.NON_EXISTING_CLASSIFIER_ID
 import org.jetbrains.kotlin.descriptors.commonizer.utils.compactMap
+import org.jetbrains.kotlin.descriptors.commonizer.utils.compactMapIndexed
 import org.jetbrains.kotlin.library.SerializedMetadata
 import org.jetbrains.kotlin.library.metadata.parsePackageFragment
 import org.jetbrains.kotlin.metadata.ProtoBuf
@@ -37,7 +40,7 @@ private fun readClassifiers(modulesProvider: ModulesProvider): Map<CirEntityId, 
     return result
 }
 
-private inline fun readModule(metadata: SerializedMetadata, consumer: (CirEntityId, CirProvided.Classifier) -> Unit) {
+private fun readModule(metadata: SerializedMetadata, consumer: (CirEntityId, CirProvided.Classifier) -> Unit) {
     for (i in metadata.fragmentNames.indices) {
         val packageFqName = metadata.fragmentNames[i]
         val packageFragments = metadata.fragments[i]
@@ -54,8 +57,9 @@ private inline fun readModule(metadata: SerializedMetadata, consumer: (CirEntity
             val packageName = CirPackageName.create(packageFqName)
             val strings = NameResolverImpl(packageFragmentProto.strings, packageFragmentProto.qualifiedNames)
 
-            for (classProto in classProtos) {
-                readClass(classProto, packageName, strings, consumer)
+            val classProtosToRead = ClassProtosToRead(classProtos, strings)
+            classProtosToRead.forEachClassInScope(parentClassId = null) { classEntry ->
+                readClass(classEntry, classProtosToRead, typeParameterIndexOffset = 0, consumer)
             }
 
             if (typeAliasProtos.isNotEmpty()) {
@@ -68,24 +72,52 @@ private inline fun readModule(metadata: SerializedMetadata, consumer: (CirEntity
     }
 }
 
-private inline fun readClass(
-    classProto: ProtoBuf.Class,
-    packageName: CirPackageName,
-    strings: NameResolver,
+private class ClassProtosToRead(
+    classProtos: List<ProtoBuf.Class>,
+    val strings: NameResolver
+) {
+    data class ClassEntry(val classId: CirEntityId, val proto: ProtoBuf.Class)
+
+    // key = parent class ID (or NON_EXISTING_CLASSIFIER_ID for top-level classes)
+    // value = class protos under this parent class (MutableList to preserve order of classes)
+    private val groupedByParentClassId = FactoryMap.create<CirEntityId, MutableList<ClassEntry>> { ArrayList() }
+
+    init {
+        classProtos.forEach { classProto ->
+            if (strings.isLocalClassName(classProto.fqName)) return@forEach
+
+            val classId = CirEntityId.create(strings.getQualifiedClassName(classProto.fqName))
+            val parentClassId: CirEntityId = classId.getParentEntityId() ?: NON_EXISTING_CLASSIFIER_ID
+
+            groupedByParentClassId.getValue(parentClassId) += ClassEntry(classId, classProto)
+        }
+    }
+
+    fun forEachClassInScope(parentClassId: CirEntityId?, block: (ClassEntry) -> Unit) {
+        groupedByParentClassId[parentClassId ?: NON_EXISTING_CLASSIFIER_ID]?.forEach { classEntry -> block(classEntry) }
+    }
+}
+
+private fun readClass(
+    classEntry: ClassProtosToRead.ClassEntry,
+    classProtosToRead: ClassProtosToRead,
+    typeParameterIndexOffset: Int,
     consumer: (CirEntityId, CirProvided.Classifier) -> Unit
 ) {
-    if (strings.isLocalClassName(classProto.fqName))
-        return
+    val (classId, classProto) = classEntry
 
-    val classId = CirEntityId.create(strings.getQualifiedClassName(classProto.fqName))
-    check(classId.packageName == packageName)
-
-    val typeParameters = readTypeParameters(classProto.typeParameterList)
+    val typeParameters = readTypeParameters(
+        typeParameterProtos = classProto.typeParameterList,
+        typeParameterIndexOffset = typeParameterIndexOffset
+    )
     val visibility = ProtoEnumFlags.descriptorVisibility(Flags.VISIBILITY.get(classProto.flags))
-
     val clazz = CirProvided.Class(typeParameters, visibility)
 
     consumer(classId, clazz)
+
+    classProtosToRead.forEachClassInScope(parentClassId = classId) { nestedClassEntry ->
+        readClass(nestedClassEntry, classProtosToRead, typeParameterIndexOffset = typeParameters.size + typeParameterIndexOffset, consumer)
+    }
 }
 
 private inline fun readTypeAlias(
@@ -97,9 +129,14 @@ private inline fun readTypeAlias(
 ) {
     val typeAliasId = CirEntityId.create(packageName, CirName.create(strings.getString(typeAliasProto.name)))
 
-    val typeParameterNameToId = mutableMapOf<Int, Int>()
-    val typeParameters = readTypeParameters(typeAliasProto.typeParameterList, typeParameterNameToId::set)
-    val underlyingType = readType(typeAliasProto.underlyingType(types), TypeReadContext(strings, types, typeParameterNameToId))
+    val typeParameterNameToIndex = HashMap<Int, Int>()
+    val typeParameters = readTypeParameters(
+        typeParameterProtos = typeAliasProto.typeParameterList,
+        typeParameterIndexOffset = 0,
+        nameToIndexMapper = typeParameterNameToIndex::set
+    )
+
+    val underlyingType = readType(typeAliasProto.underlyingType(types), TypeReadContext(strings, types, typeParameterNameToIndex))
     val typeAlias = CirProvided.TypeAlias(typeParameters, underlyingType)
 
     consumer(typeAliasId, typeAlias)
@@ -107,23 +144,30 @@ private inline fun readTypeAlias(
 
 private inline fun readTypeParameters(
     typeParameterProtos: List<ProtoBuf.TypeParameter>,
-    nameToIdMapper: (name: Int, id: Int) -> Unit = { _, _ -> }
+    typeParameterIndexOffset: Int,
+    nameToIndexMapper: (name: Int, id: Int) -> Unit = { _, _ -> }
 ): List<CirProvided.TypeParameter> =
-    typeParameterProtos.compactMap { typeParameterProto ->
+    typeParameterProtos.compactMapIndexed { localIndex, typeParameterProto ->
+        val index = localIndex + typeParameterIndexOffset
         val typeParameter = CirProvided.TypeParameter(
-            id = typeParameterProto.id,
+            index = index,
             variance = readVariance(typeParameterProto.variance)
         )
-        nameToIdMapper(typeParameterProto.name, typeParameter.id)
+        nameToIndexMapper(typeParameterProto.name, index)
         typeParameter
     }
 
 private class TypeReadContext(
     val strings: NameResolver,
     val types: TypeTable,
-    val typeParameterNameToId: Map<Int, Int>
+    private val _typeParameterNameToIndex: Map<Int, Int>
 ) {
-    operator fun get(index: Int): String = strings.getString(index)
+    val typeParameterNameToIndex: (Int) -> Int = { name ->
+        _typeParameterNameToIndex[name] ?: error("No type parameter index for ${strings.getString(name)}")
+    }
+
+    private val _typeParameterIdToIndex = HashMap<Int, Int>()
+    val typeParameterIdToIndex: (Int) -> Int = { id -> _typeParameterIdToIndex.getOrPut(id) { _typeParameterIdToIndex.size } }
 }
 
 private fun readType(typeProto: ProtoBuf.Type, context: TypeReadContext): CirProvided.Type =
@@ -150,11 +194,11 @@ private fun readType(typeProto: ProtoBuf.Type, context: TypeReadContext): CirPro
                 isMarkedNullable = nullable
             )
             hasTypeParameter() -> CirProvided.TypeParameterType(
-                id = typeParameter,
+                index = context.typeParameterIdToIndex(typeParameter),
                 isMarkedNullable = nullable
             )
             hasTypeParameterName() -> CirProvided.TypeParameterType(
-                id = context.typeParameterNameToId[typeParameterName] ?: error("No type parameter id for ${context[typeParameterName]}"),
+                index = context.typeParameterNameToIndex(typeParameterName),
                 isMarkedNullable = nullable
             )
             else -> error("No classifier (class, type alias or type parameter) recorded for Type")
