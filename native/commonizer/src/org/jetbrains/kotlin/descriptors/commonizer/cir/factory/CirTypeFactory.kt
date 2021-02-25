@@ -27,6 +27,15 @@ object CirTypeFactory {
             arguments = emptyList(),
             isMarkedNullable = false
         )
+
+        // just a temporary solution until full type resolution is implemented
+        internal val NON_EXISTING_TYPE = createClassType(
+            classId = CirEntityId.create("non/existing/type/ABCDEF01234"),
+            outerType = null,
+            visibility = DescriptorVisibilities.PUBLIC,
+            arguments = emptyList(),
+            isMarkedNullable = false
+        )
     }
 
     private val classTypeInterner = Interner<CirClassType>()
@@ -361,14 +370,12 @@ private fun computeUnderlyingType(
     return when (val underlyingType = typeAlias.underlyingType) {
         is CirProvided.ClassType -> computeUnderlyingClassType(
             underlyingType = underlyingType,
-            relevantTypeAliasTypeParameters = typeAlias.typeParameters,
             typeAliasTypeArguments = typeAliasTypeArguments,
             typeAliasTypeIsMarkedNullable = typeAliasTypeIsMarkedNullable,
             typeResolver = typeResolver
         )
         is CirProvided.TypeAliasType -> computeUnderlyingTypeAliasType(
             underlyingType = underlyingType,
-            typeAliasTypeParameters = typeAlias.typeParameters,
             typeAliasTypeArguments = typeAliasTypeArguments,
             typeAliasTypeIsMarkedNullable = typeAliasTypeIsMarkedNullable,
             typeResolver = typeResolver
@@ -379,35 +386,24 @@ private fun computeUnderlyingType(
 
 private fun computeUnderlyingClassType(
     underlyingType: CirProvided.ClassType,
-    relevantTypeAliasTypeParameters: List<CirProvided.TypeParameter>,
     typeAliasTypeArguments: List<CirTypeProjection>,
     typeAliasTypeIsMarkedNullable: Boolean,
     typeResolver: CirTypeResolver
 ): CirClassType {
-    val remainingTypeAliasTypeParameters: List<CirProvided.TypeParameter>
-    val outerType = when (val outerType = underlyingType.outerType) {
-        null -> {
-            remainingTypeAliasTypeParameters = relevantTypeAliasTypeParameters
-
-            null // no outer type
-        }
-        else -> {
-            val outerTypeArgumentsCount = outerType.arguments.size
-            val totalArgumentsCount = relevantTypeAliasTypeParameters.size
-            remainingTypeAliasTypeParameters = relevantTypeAliasTypeParameters.subList(outerTypeArgumentsCount, totalArgumentsCount)
-
-            computeUnderlyingClassType(
-                underlyingType = outerType,
-                relevantTypeAliasTypeParameters = relevantTypeAliasTypeParameters.subList(0, outerTypeArgumentsCount),
-                typeAliasTypeArguments = typeAliasTypeArguments, typeAliasTypeIsMarkedNullable = false,
-                typeResolver = typeResolver
-            )
-        }
+    val outerType = underlyingType.outerType?.let { outerType ->
+        computeUnderlyingClassType(
+            underlyingType = outerType,
+            typeAliasTypeArguments = typeAliasTypeArguments, typeAliasTypeIsMarkedNullable = false,
+            typeResolver = typeResolver
+        )
     }
 
+    val underlyingClass: CirProvided.Class = typeResolver.resolveClassifier(underlyingType.classId)
+    val underlyingTypeParameters = underlyingClass.typeParameters
+
     val underlyingTypeArguments = computeUnderlyingTypeArguments(
-        relevantTypeAliasTypeParameters = remainingTypeAliasTypeParameters,
         typeAliasTypeArguments = typeAliasTypeArguments,
+        underlyingTypeParameters = underlyingTypeParameters,
         underlyingTypeArguments = underlyingType.arguments,
         typeResolver = typeResolver
     )
@@ -415,7 +411,7 @@ private fun computeUnderlyingClassType(
     return CirTypeFactory.createClassType(
         classId = underlyingType.classId,
         outerType = outerType,
-        visibility = typeResolver.resolveClassVisibility(underlyingType.classId),
+        visibility = underlyingClass.visibility,
         arguments = underlyingTypeArguments,
         isMarkedNullable = typeAliasTypeIsMarkedNullable || underlyingType.isMarkedNullable
     )
@@ -423,14 +419,16 @@ private fun computeUnderlyingClassType(
 
 private fun computeUnderlyingTypeAliasType(
     underlyingType: CirProvided.TypeAliasType,
-    typeAliasTypeParameters: List<CirProvided.TypeParameter>,
     typeAliasTypeArguments: List<CirTypeProjection>,
     typeAliasTypeIsMarkedNullable: Boolean,
     typeResolver: CirTypeResolver
 ): CirTypeAliasType {
+    val underlyingTypeAlias: CirProvided.TypeAlias = typeResolver.resolveClassifier(underlyingType.typeAliasId)
+    val underlyingTypeParameters = underlyingTypeAlias.typeParameters
+
     val underlyingTypeArguments = computeUnderlyingTypeArguments(
-        relevantTypeAliasTypeParameters = typeAliasTypeParameters,
         typeAliasTypeArguments = typeAliasTypeArguments,
+        underlyingTypeParameters = underlyingTypeParameters,
         underlyingTypeArguments = underlyingType.arguments,
         typeResolver = typeResolver
     )
@@ -450,55 +448,53 @@ private fun computeUnderlyingTypeAliasType(
 }
 
 private fun computeUnderlyingTypeArguments(
-    relevantTypeAliasTypeParameters: List<CirProvided.TypeParameter>,
     typeAliasTypeArguments: List<CirTypeProjection>,
+    underlyingTypeParameters: List<CirProvided.TypeParameter>,
     underlyingTypeArguments: List<CirProvided.TypeProjection>,
     typeResolver: CirTypeResolver
-): List<CirTypeProjection> {
-    check(relevantTypeAliasTypeParameters.size == underlyingTypeArguments.size) {
-        "Failed"
-    }
-
-    return underlyingTypeArguments.compactMapIndexed { index, underlyingTypeArgument ->
-        when (underlyingTypeArgument) {
-            is CirProvided.RegularTypeProjection -> {
-                val argument: CirTypeProjection = when (val underlyingTypeArgumentType = underlyingTypeArgument.type) {
-                    is CirProvided.ClassType -> {
-                        computeUnderlyingClassType(
-                            underlyingType = underlyingTypeArgumentType,
-                            relevantTypeAliasTypeParameters = emptyList(), // TODO
-                            typeAliasTypeArguments = emptyList(), // TODO
-                            typeAliasTypeIsMarkedNullable = underlyingTypeArgumentType.isMarkedNullable,
-                            typeResolver = typeResolver
-                        )
-
-                        TODO()
-                    }
-                    is CirProvided.TypeAliasType -> TODO()
-                    is CirProvided.TypeParameterType -> {
-                        typeAliasTypeArguments.getOrNull(underlyingTypeArgumentType.index)
-                            ?: error("No substitution argument found with index ${underlyingTypeArgumentType.index}")
-                    }
+): List<CirTypeProjection> = underlyingTypeArguments.compactMapIndexed { index, underlyingTypeArgument ->
+    when (underlyingTypeArgument) {
+        is CirProvided.RegularTypeProjection -> {
+            val argument: CirTypeProjection = when (val underlyingTypeArgumentType = underlyingTypeArgument.type) {
+                is CirProvided.ClassType -> {
+                    // TODO: replace by real argument
+                    CirTypeProjectionImpl(
+                        projectionKind = underlyingTypeArgument.variance,
+                        type = CirTypeFactory.StandardTypes.NON_EXISTING_TYPE
+                    )
                 }
-
-                when (argument) {
-                    is CirTypeProjectionImpl -> {
-                        val resultingVariance = mergeVariance(
-                            underlyingVariance = underlyingTypeArgument.variance,
-                            argumentVariance = argument.projectionKind,
-                            parameterVariance = relevantTypeAliasTypeParameters[index].variance
-                        )
-
-                        if (resultingVariance == argument.projectionKind)
-                            argument
-                        else
-                            CirTypeProjectionImpl(resultingVariance, argument.type)
-                    }
-                    is CirStarTypeProjection -> CirStarTypeProjection
+                is CirProvided.TypeAliasType -> {
+                    // TODO: replace by real argument
+                    CirTypeProjectionImpl(
+                        projectionKind = underlyingTypeArgument.variance,
+                        type = CirTypeFactory.StandardTypes.NON_EXISTING_TYPE
+                    )
+                }
+                is CirProvided.TypeParameterType -> {
+                    typeAliasTypeArguments.getOrNull(underlyingTypeArgumentType.index)
+                        ?: error("No substitution argument found with index ${underlyingTypeArgumentType.index}")
                 }
             }
-            CirProvided.StarTypeProjection -> CirStarTypeProjection
+
+            when (argument) {
+                is CirTypeProjectionImpl -> {
+
+
+                    val resultingVariance = mergeVariance(
+                        underlyingVariance = underlyingTypeArgument.variance,
+                        argumentVariance = argument.projectionKind,
+                        parameterVariance = underlyingTypeParameters[index].variance
+                    )
+
+                    if (resultingVariance == argument.projectionKind)
+                        argument
+                    else
+                        CirTypeProjectionImpl(resultingVariance, argument.type)
+                }
+                is CirStarTypeProjection -> CirStarTypeProjection
+            }
         }
+        CirProvided.StarTypeProjection -> CirStarTypeProjection
     }
 }
 
