@@ -47,7 +47,8 @@ fun generate(): String {
     val allPrimitiveTypes = builtIns.builtInsPackageScope.getContributedDescriptors()
         .filter { it is ClassDescriptor && KotlinBuiltIns.isPrimitiveType(it.defaultType) } as List<ClassDescriptor>
 
-    val integerTypes = allPrimitiveTypes.map { it.defaultType } .filter { it.isIntegerType() }
+    val integerTypes = allPrimitiveTypes.map { it.defaultType }.filter { it.isIntegerType() }
+    val fpTypes = allPrimitiveTypes.map { it.defaultType }.filter { it.isFpType() }
 
     for (descriptor in allPrimitiveTypes + builtIns.string) {
         @Suppress("UNCHECKED_CAST")
@@ -72,6 +73,13 @@ fun generate(): String {
             val parameters = listOf(type, otherType)
             binaryOperationsMap.add("mod" to parameters)
             binaryOperationsMap.add("floorDiv" to parameters)
+        }
+    }
+
+    for (type in fpTypes) {
+        for (otherType in fpTypes) {
+            val parameters = listOf(type, otherType)
+            binaryOperationsMap.add("mod" to parameters)
         }
     }
 
@@ -172,6 +180,9 @@ private fun getBinaryCheckerName(name: String, leftType: KotlinType, rightType: 
 
 private fun KotlinType.isIntegerType(): Boolean =
     KotlinBuiltIns.isInt(this) || KotlinBuiltIns.isShort(this) || KotlinBuiltIns.isByte(this) || KotlinBuiltIns.isLong(this)
+
+private fun KotlinType.isFpType(): Boolean =
+    KotlinBuiltIns.isDouble(this) || KotlinBuiltIns.isFloat(this)
 
 private fun CallableDescriptor.getParametersTypes(): List<KotlinType> =
     listOf((containingDeclaration as ClassDescriptor).defaultType) +

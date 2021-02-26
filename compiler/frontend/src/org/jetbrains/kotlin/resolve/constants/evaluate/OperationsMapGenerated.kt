@@ -213,6 +213,7 @@ internal fun evalBinaryOp(name: String, leftType: CompileTimeType, left: Any, ri
                 "plus" -> return (left as Double).plus(right as Double)
                 "rem" -> return (left as Double).rem(right as Double)
                 "times" -> return (left as Double).times(right as Double)
+                "mod" -> return (left as Double).mod(right as Double)
             }
             FLOAT -> when (name) {
                 "compareTo" -> return (left as Double).compareTo(right as Float)
@@ -221,6 +222,7 @@ internal fun evalBinaryOp(name: String, leftType: CompileTimeType, left: Any, ri
                 "plus" -> return (left as Double).plus(right as Float)
                 "rem" -> return (left as Double).rem(right as Float)
                 "times" -> return (left as Double).times(right as Float)
+                "mod" -> return (left as Double).mod(right as Float)
             }
             INT -> when (name) {
                 "compareTo" -> return (left as Double).compareTo(right as Int)
@@ -266,6 +268,7 @@ internal fun evalBinaryOp(name: String, leftType: CompileTimeType, left: Any, ri
                 "plus" -> return (left as Float).plus(right as Double)
                 "rem" -> return (left as Float).rem(right as Double)
                 "times" -> return (left as Float).times(right as Double)
+                "mod" -> return (left as Float).mod(right as Double)
             }
             FLOAT -> when (name) {
                 "compareTo" -> return (left as Float).compareTo(right as Float)
@@ -274,6 +277,7 @@ internal fun evalBinaryOp(name: String, leftType: CompileTimeType, left: Any, ri
                 "plus" -> return (left as Float).plus(right as Float)
                 "rem" -> return (left as Float).rem(right as Float)
                 "times" -> return (left as Float).times(right as Float)
+                "mod" -> return (left as Float).mod(right as Float)
             }
             INT -> when (name) {
                 "compareTo" -> return (left as Float).compareTo(right as Int)
