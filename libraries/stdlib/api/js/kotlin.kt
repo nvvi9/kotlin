@@ -429,6 +429,22 @@ public inline fun kotlin.Byte.mod(other: kotlin.Short): kotlin.Short
 
 @kotlin.SinceKotlin(version = "1.5")
 @kotlin.internal.InlineOnly
+public inline fun kotlin.Double.mod(other: kotlin.Double): kotlin.Double
+
+@kotlin.SinceKotlin(version = "1.5")
+@kotlin.internal.InlineOnly
+public inline fun kotlin.Double.mod(other: kotlin.Float): kotlin.Double
+
+@kotlin.SinceKotlin(version = "1.5")
+@kotlin.internal.InlineOnly
+public inline fun kotlin.Float.mod(other: kotlin.Double): kotlin.Double
+
+@kotlin.SinceKotlin(version = "1.5")
+@kotlin.internal.InlineOnly
+public inline fun kotlin.Float.mod(other: kotlin.Float): kotlin.Float
+
+@kotlin.SinceKotlin(version = "1.5")
+@kotlin.internal.InlineOnly
 public inline fun kotlin.Int.mod(other: kotlin.Byte): kotlin.Byte
 
 @kotlin.SinceKotlin(version = "1.5")
