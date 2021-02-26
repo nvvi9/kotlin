@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.descriptors.commonizer.mergedtree
 
 import com.intellij.util.containers.FactoryMap
 import gnu.trove.THashMap
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.descriptors.commonizer.ModulesProvider
 import org.jetbrains.kotlin.descriptors.commonizer.cir.CirEntityId
 import org.jetbrains.kotlin.descriptors.commonizer.cir.CirName
@@ -14,6 +15,7 @@ import org.jetbrains.kotlin.descriptors.commonizer.cir.CirPackageName
 import org.jetbrains.kotlin.descriptors.commonizer.utils.NON_EXISTING_CLASSIFIER_ID
 import org.jetbrains.kotlin.descriptors.commonizer.utils.compactMap
 import org.jetbrains.kotlin.descriptors.commonizer.utils.compactMapIndexed
+import org.jetbrains.kotlin.descriptors.commonizer.utils.isUnderKotlinNativeSyntheticPackages
 import org.jetbrains.kotlin.library.SerializedMetadata
 import org.jetbrains.kotlin.library.metadata.parsePackageFragment
 import org.jetbrains.kotlin.metadata.ProtoBuf
@@ -22,22 +24,70 @@ import org.jetbrains.kotlin.serialization.deserialization.ProtoEnumFlags
 import org.jetbrains.kotlin.serialization.deserialization.descriptorVisibility
 import org.jetbrains.kotlin.types.Variance
 
-internal class CirProvidedClassifiersByModules(modulesProvider: ModulesProvider) : CirProvidedClassifiers {
-    private val classifiers = readClassifiers(modulesProvider)
+internal class CirProvidedClassifiersByModules private constructor(
+    private val hasForwardDeclarations: Boolean,
+    private val classifiers: Map<CirEntityId, CirProvided.Classifier>,
+//    private val potentiallyAliasedClasses: Map<CirName, CirProvided.Class>
+) : CirProvidedClassifiers {
+//    private val aliasedClasses = FactoryMap.create<CirEntityId, CirProvided.Class> { _ ->
+//        potentiallyAliasedClasses[classId.relativeNameSegments.first()]
+//            ?: CirProvided.Class(emptyList(), DescriptorVisibilities.PUBLIC)
+//    }
 
-    override fun hasClassifier(classifierId: CirEntityId) = classifierId in classifiers
-    override fun classifier(classifierId: CirEntityId) = classifiers[classifierId]
-}
+    override fun hasClassifier(classifierId: CirEntityId) =
+        if (classifierId.packageName.isUnderKotlinNativeSyntheticPackages) {
+            hasForwardDeclarations
+        } else {
+            classifierId in classifiers
+        }
 
-private fun readClassifiers(modulesProvider: ModulesProvider): Map<CirEntityId, CirProvided.Classifier> {
-    val result = THashMap<CirEntityId, CirProvided.Classifier>()
+    override fun classifier(classifierId: CirEntityId) =
+        if (classifierId.packageName.isUnderKotlinNativeSyntheticPackages) {
+            if (hasForwardDeclarations) FALLBACK_FORWARD_DECLARATION_CLASS else null
+        } else {
+            classifiers[classifierId]
+        }
 
-    modulesProvider.loadModuleInfos().forEach { moduleInfo ->
-        val metadata = modulesProvider.loadModuleMetadata(moduleInfo.name)
-        readModule(metadata, result::set)
+    companion object {
+        fun load(modulesProvider: ModulesProvider): CirProvidedClassifiers {
+            val classifiers = THashMap<CirEntityId, CirProvided.Classifier>()
+//            val potentiallyAliasedClasses = THashMap<CirName, CirProvided.Class>()
+            var hasForwardDeclarations = false
+
+            modulesProvider.loadModuleInfos().forEach { moduleInfo ->
+//                val classifierConsumer: (CirEntityId, CirProvided.Classifier) -> Unit
+//                val isCInteropModule = moduleInfo.cInteropAttributes != null
+                if (moduleInfo.cInteropAttributes != null) {
+                    // this is a C-interop module
+                    hasForwardDeclarations = true
+                }
+
+//                if (isCInteropModule) {
+//                    hasForwardDeclarations = true
+//                    classifierConsumer = { classifierId, classifier ->
+//                        classifiers[classifierId] = classifier
+////                        if (classifier is org.jetbrains.kotlin.descriptors.commonizer.mergedtree.CirProvided.Class) {
+////                            classifierId.relativeNameSegments.singleOrNull()?.let { classifierName ->
+////                                potentiallyAliasedClasses[classifierName] = classifier
+////                            }
+////                        }
+//                    }
+//                } else {
+//                    classifierConsumer = { classifierId, classifier -> classifiers[classifierId] = classifier }
+//                }
+
+                val metadata = modulesProvider.loadModuleMetadata(moduleInfo.name)
+                readModule(metadata, classifiers::set)
+            }
+
+            if (classifiers.isEmpty)
+                return CirProvidedClassifiers.EMPTY
+
+            return CirProvidedClassifiersByModules(hasForwardDeclarations, classifiers)
+        }
+
+        private val FALLBACK_FORWARD_DECLARATION_CLASS = CirProvided.Class(emptyList(), DescriptorVisibilities.PUBLIC)
     }
-
-    return result
 }
 
 private fun readModule(metadata: SerializedMetadata, consumer: (CirEntityId, CirProvided.Classifier) -> Unit) {
@@ -52,7 +102,7 @@ private fun readModule(metadata: SerializedMetadata, consumer: (CirEntityId, Cir
             val typeAliasProtos: List<ProtoBuf.TypeAlias> = packageFragmentProto.`package`?.typeAliasList.orEmpty()
 
             if (classProtos.isEmpty() && typeAliasProtos.isEmpty())
-                break // this and next package fragments do not contain classifiers and can be skipped
+                continue
 
             val packageName = CirPackageName.create(packageFqName)
             val strings = NameResolverImpl(packageFragmentProto.strings, packageFragmentProto.qualifiedNames)

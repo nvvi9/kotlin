@@ -49,7 +49,7 @@ interface CirProvidedClassifiers {
         }
 
         fun by(modulesProvider: ModulesProvider?): CirProvidedClassifiers =
-            if (modulesProvider != null) CirProvidedClassifiersByModules(modulesProvider) else EMPTY
+            if (modulesProvider != null) CirProvidedClassifiersByModules.load(modulesProvider) else EMPTY
     }
 }
 

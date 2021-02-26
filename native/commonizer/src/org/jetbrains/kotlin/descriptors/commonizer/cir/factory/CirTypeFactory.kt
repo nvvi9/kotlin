@@ -44,7 +44,14 @@ object CirTypeFactory {
 
     fun create(source: KmType, typeResolver: CirTypeResolver, useAbbreviation: Boolean = true): CirType {
         @Suppress("NAME_SHADOWING")
-        val source = if (useAbbreviation) source.abbreviatedType ?: source else source
+        val source = if (useAbbreviation) {
+            val abbreviatedType = source.abbreviatedType
+            if ((abbreviatedType?.classifier as? KmClassifier.TypeAlias)?.name?.endsWith("ALAssetsLibraryGroupsEnumerationResultsBlock") == true) {
+                print("")
+            }
+
+            abbreviatedType ?: source
+        } else source
         val isMarkedNullable = Flag.Type.IS_NULLABLE(source.flags)
 
         return when (val classifier = source.classifier) {
@@ -57,10 +64,12 @@ object CirTypeFactory {
                     outerClassType
                 }
 
+                val clazz: CirProvided.Class = typeResolver.resolveClassifier(classId)
+
                 createClassType(
                     classId = classId,
                     outerType = outerType,
-                    visibility = typeResolver.resolveClassVisibility(classId),
+                    visibility = clazz.visibility,
                     arguments = createArguments(source.arguments, typeResolver, useAbbreviation),
                     isMarkedNullable = isMarkedNullable
                 )
@@ -307,10 +316,6 @@ abstract class CirTypeResolver : TypeParameterResolver {
 
         return classifier
     }
-
-    @Suppress("NOTHING_TO_INLINE")
-    inline fun resolveClassVisibility(classId: CirEntityId): DescriptorVisibility =
-        resolveClassifier<CirProvided.Class>(classId).visibility
 
     abstract fun resolveTypeParameterIndex(id: TypeParameterId): TypeParameterIndex
     abstract override fun resolveTypeParameter(id: TypeParameterId): KmTypeParameter
