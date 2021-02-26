@@ -222,8 +222,11 @@ class FloorDivModTest {
         check(-10.125, -0.5, -0.125)
         val large = 2.0.pow(53)
         check(0.025, large, 0.025)
-        check(-0.025, large, large)
-        check(0.025, -large, -large)
+        check(-0.025, large, expectedMod = large)
+        check(0.025, -large, expectedMod = -large)
+        check(1.0, Double.NaN, Double.NaN)
+        check(Double.NaN, 1.0, Double.NaN)
+        check(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN)
         val values = listOf(1.0, -1.0, 3.0, -3.0, large, -large, Double.MIN_VALUE, Double.MAX_VALUE,
                             Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN)
         for (a in values + 0.0) {
@@ -257,8 +260,11 @@ class FloorDivModTest {
         check(-10.125f, -0.5f, -0.125f)
         val large = 2.0f.pow(53)
         check(0.025f, large, 0.025f)
-        check(-0.025f, large, large)
-        check(0.025f, -large, -large)
+        check(-0.025f, large, expectedMod = large)
+        check(0.025f, -large, expectedMod = -large)
+        check(1.0f, Float.NaN, Float.NaN)
+        check(Float.NaN, 1.0f, Float.NaN)
+        check(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN)
         val values = listOf(1.0f, -1.0f, 3.0f, -3.0f, large, -large, Float.MIN_VALUE, Float.MAX_VALUE,
                             Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN)
         for (a in values + 0.0f) {
