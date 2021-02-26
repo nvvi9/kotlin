@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.*
 import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.CirNode.Companion.dimension
 import org.jetbrains.kotlin.descriptors.commonizer.mergedtree.CirTreeMerger.CirTreeMergeResult
 import org.jetbrains.kotlin.descriptors.commonizer.metadata.MetadataBuilder
+import org.jetbrains.kotlin.descriptors.commonizer.utils.isUnderKotlinNativeSyntheticPackages
 import org.jetbrains.kotlin.library.SerializedMetadata
 import org.jetbrains.kotlin.storage.LockBasedStorageManager
 import org.jetbrains.kotlin.storage.StorageManager
@@ -116,7 +117,11 @@ private fun diffTrees(oldRootNode: CirRootNode, newRootNode: CirRootNode) {
         "objcnames/classes/INIntentResponse" to "platform/Intents/INIntentResponse",
         "objcnames/classes/INShortcut" to "platform/Intents/INShortcut",
         "objcnames/classes/INInteraction" to "platform/Intents/INInteraction",
-        "objcnames/classes/INVoiceShortcut" to "platform/Intents/INVoiceShortcut"
+        "objcnames/classes/INVoiceShortcut" to "platform/Intents/INVoiceShortcut",
+        "cnames/structs/mach_header" to "platform/darwin/mach_header",
+        "cnames/structs/dirent" to "platform/posix/dirent",
+        "cnames/structs/stat" to "platform/posix/stat",
+        "objcnames/classes/CKRecordID" to "platform/CloudKit/CKRecordID"
     )
 
     val mismatches = mutableListOf<String>()
@@ -170,11 +175,26 @@ private fun diffTrees(oldRootNode: CirRootNode, newRootNode: CirRootNode) {
             return true
 
         if (old is CirClassOrTypeAliasType && new is CirClassOrTypeAliasType) {
-            if (old.classifierId != new.classifierId
-                || old.arguments.size != new.arguments.size
+            if (old.arguments.size != new.arguments.size
                 || old.isMarkedNullable != new.isMarkedNullable
             ) {
                 return false
+            }
+
+            if (old.classifierId != new.classifierId) {
+                if (!old.classifierId.packageName.isUnderKotlinNativeSyntheticPackages
+                    && new.classifierId.packageName.isUnderKotlinNativeSyntheticPackages
+                ) {
+                    var newClassifierId = new.classifierId.toString()
+                    replacements.forEach { (replacementNew, replacementOld) ->
+                        newClassifierId = newClassifierId.replace(replacementNew, replacementOld)
+                    }
+
+                    if (newClassifierId != old.classifierId.toString())
+                        return false
+                } else {
+                    return false
+                }
             }
 
             for (i in old.arguments.indices) {
