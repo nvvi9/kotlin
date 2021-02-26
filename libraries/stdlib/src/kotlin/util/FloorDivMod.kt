@@ -9,6 +9,8 @@
 @file:kotlin.jvm.JvmMultifileClass
 package kotlin
 
+import kotlin.math.sign
+
 @SinceKotlin("1.5")
 @kotlin.internal.InlineOnly
 public inline fun Byte.floorDiv(other: Byte): Int = 
@@ -177,5 +179,29 @@ public inline fun Long.floorDiv(other: Long): Long {
 public inline fun Long.mod(other: Long): Long {
     val r = this % other
     return r + (other and (((r xor other) and (r or -r)) shr 63))
+}
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun Float.mod(other: Float): Float {
+    val r = this % other
+    return if (r != 0.0.toFloat() && r.sign != other.sign) r + other else r
+}
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun Float.mod(other: Double): Double = 
+    this.toDouble().mod(other)
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun Double.mod(other: Float): Double = 
+    this.mod(other.toDouble())
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun Double.mod(other: Double): Double {
+    val r = this % other
+    return if (r != 0.0 && r.sign != other.sign) r + other else r
 }
 

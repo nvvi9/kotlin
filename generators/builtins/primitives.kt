@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.generators.builtins.numbers
 
 import org.jetbrains.kotlin.generators.builtins.PrimitiveType
+import org.jetbrains.kotlin.generators.builtins.convert
 import org.jetbrains.kotlin.generators.builtins.generateBuiltIns.BuiltInsSourceGenerator
 import java.io.PrintWriter
 
@@ -402,17 +403,25 @@ class GenerateFloorDivMod(out: PrintWriter) : BuiltInsSourceGenerator(out) {
 
     override fun getMultifileClassName() = "NumbersKt"
     override fun generateBody() {
-        val kinds = PrimitiveType.integral intersect PrimitiveType.onlyNumeric
-        for (thisKind in kinds) {
-            for (otherKind in kinds) {
-                generateFloorDiv(thisKind, otherKind)
-                generateMod(thisKind, otherKind)
+        out.println("import kotlin.math.sign")
+        out.println()
+
+        val integerTypes = PrimitiveType.integral intersect PrimitiveType.onlyNumeric
+        for (thisType in integerTypes) {
+            for (otherType in integerTypes) {
+                generateFloorDiv(thisType, otherType)
+                generateMod(thisType, otherType)
             }
         }
-    }
 
-    private fun convert(expr: String, kind: PrimitiveType, targetKind: PrimitiveType): String =
-        if (kind == targetKind) expr else "$expr.to${targetKind.capitalized}()"
+        val fpTypes = PrimitiveType.floatingPoint
+        for (thisType in fpTypes) {
+            for (otherType in fpTypes) {
+                generateFpMod(thisType, otherType)
+            }
+        }
+
+    }
 
 
     private fun generateFloorDiv(thisKind: PrimitiveType, otherKind: PrimitiveType) {
@@ -433,7 +442,8 @@ class GenerateFloorDivMod(out: PrintWriter) : BuiltInsSourceGenerator(out) {
             )
         } else {
             out.println("$declaration = ")
-            out.println("    ${convert("this", thisKind, returnType)}.floorDiv(${convert("other", otherKind, returnType)})")
+            out.println("    ${
+                convert("this", thisKind, returnType)}.floorDiv(${convert("other", otherKind, returnType)})")
         }
         out.println()
     }
@@ -459,6 +469,27 @@ class GenerateFloorDivMod(out: PrintWriter) : BuiltInsSourceGenerator(out) {
                 "${convert("this", thisKind, operationType)}.mod(${convert("other", otherKind, operationType)})",
                 operationType, returnType
             ))
+        }
+        out.println()
+    }
+
+    private fun generateFpMod(thisKind: PrimitiveType, otherKind: PrimitiveType) {
+        val operationType = getOperatorReturnType(thisKind, otherKind)
+        out.println("""@SinceKotlin("1.5")""")
+        out.println("@kotlin.internal.InlineOnly")
+        val declaration = "public inline fun ${thisKind.capitalized}.mod(other: ${otherKind.capitalized}): ${operationType.capitalized}"
+        if (thisKind == otherKind && thisKind >= PrimitiveType.INT) {
+            out.println(
+                """
+                    $declaration {
+                        val r = this % other
+                        return if (r != ${convert("0.0", PrimitiveType.DOUBLE, operationType)} && r.sign != other.sign) r + other else r
+                    }
+                """.trimIndent()
+            )
+        } else {
+            out.println("$declaration = ")
+            out.println("    ${convert("this", thisKind, operationType)}.mod(${convert("other", otherKind, operationType)})")
         }
         out.println()
     }
