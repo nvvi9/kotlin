@@ -18,10 +18,10 @@ val prop1: Byte = 10.mod(2)
 val prop2: Short = 10.mod(-3)
 val prop3: Int = (-10).mod(4)
 val prop4: Long = (-10).mod(-5)
-val prop5: Double = 0.25.mod(-100)
+val prop5: Double = 0.25.mod(-100.0)
 val prop6: Float = 100f.mod(0.33f)
 
-@Ann(10.mod(2), 10.mod(-3), (-10).mod(4), (-10).mod(5), 0.25.mod(-100), 100f.mod(0.33f)) class MyClass
+@Ann(10.mod(2), 10.mod(-3), (-10).mod(4), (-10).mod(5), 0.25.mod(-100.0), 100f.mod(0.33f)) class MyClass
 
 fun box(): String {
     val annotation = MyClass::class.java.getAnnotation(Ann::class.java)!!
