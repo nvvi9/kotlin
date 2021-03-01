@@ -141,34 +141,29 @@ open class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransfor
             }
             dataFlowAnalyzer.enterProperty(property)
             withFullBodyResolve {
-                withLocalScopeCleanup {
-                    val primaryConstructorParametersScope = context.getPrimaryConstructorPureParametersScope()
-                    context.withContainer(property) {
+                context.withContainer(property) {
+                    withLocalScope(context.getPrimaryConstructorPureParametersScope()) {
                         if (property.delegate != null) {
-                            addLocalScope(primaryConstructorParametersScope)
                             transformPropertyWithDelegate(property)
                         } else {
-                            withLocalScopeCleanup {
-                                addLocalScope(primaryConstructorParametersScope)
-                                property.transformChildrenWithoutAccessors(returnTypeRef)
-                            }
+                            property.transformChildrenWithoutAccessors(returnTypeRef)
                             if (property.initializer != null) {
                                 storeVariableReturnType(property)
                             }
-                            withLocalScopeCleanup {
-                                if (property.receiverTypeRef == null && property.returnTypeRef !is FirImplicitTypeRef) {
-                                    addLocalScope(FirLocalScope().storeBackingField(property))
-                                }
-                                property.transformAccessors()
-                            }
                         }
                     }
-                    transformer.replaceDeclarationResolvePhaseIfNeeded(property, transformerPhase)
-                    dataFlowAnalyzer.exitProperty(property)?.let {
-                        property.replaceControlFlowGraphReference(FirControlFlowGraphReferenceImpl(it))
+                    withNewLocalScope {
+                        if (property.receiverTypeRef == null && property.returnTypeRef !is FirImplicitTypeRef) {
+                            context.storeBackingField(property)
+                        }
+                        property.transformAccessors()
                     }
-                    property.compose()
                 }
+                transformer.replaceDeclarationResolvePhaseIfNeeded(property, transformerPhase)
+                dataFlowAnalyzer.exitProperty(property)?.let {
+                    property.replaceControlFlowGraphReference(FirControlFlowGraphReferenceImpl(it))
+                }
+                property.compose()
             }
         }
     }
