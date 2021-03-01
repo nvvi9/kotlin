@@ -142,7 +142,7 @@ open class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransfor
             dataFlowAnalyzer.enterProperty(property)
             withFullBodyResolve {
                 context.withContainer(property) {
-                    withLocalScope(context.getPrimaryConstructorPureParametersScope()) {
+                    withPrimaryConstructorParameters(includeProperties = false) {
                         if (property.delegate != null) {
                             transformPropertyWithDelegate(property)
                         } else {
@@ -178,23 +178,19 @@ open class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransfor
         }
         dataFlowAnalyzer.enterField(field)
         return withFullBodyResolve {
-            withLocalScopeCleanup {
-                val primaryConstructorParametersScope = context.getPrimaryConstructorAllParametersScope()
-                context.withTowerDataMode(FirTowerDataMode.CONSTRUCTOR_HEADER) {
-                    context.withContainer(field) {
-                        withLocalScopeCleanup {
-                            addLocalScope(primaryConstructorParametersScope)
-                            field.transformChildren(transformer, withExpectedType(returnTypeRef))
-                        }
-                        if (field.initializer != null) {
-                            storeVariableReturnType(field)
-                        }
+            context.withTowerDataMode(FirTowerDataMode.CONSTRUCTOR_HEADER) {
+                context.withContainer(field) {
+                    withPrimaryConstructorParameters(includeProperties = true) {
+                        field.transformChildren(transformer, withExpectedType(returnTypeRef))
+                    }
+                    if (field.initializer != null) {
+                        storeVariableReturnType(field)
                     }
                 }
-                transformer.replaceDeclarationResolvePhaseIfNeeded(field, transformerPhase)
-                dataFlowAnalyzer.exitField(field)
-                field.compose()
             }
+            transformer.replaceDeclarationResolvePhaseIfNeeded(field, transformerPhase)
+            dataFlowAnalyzer.exitField(field)
+            field.compose()
         }
     }
 
@@ -697,11 +693,8 @@ open class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransfor
         data: ResolutionMode
     ): CompositeTransformResult<FirDeclaration> {
         if (implicitTypeOnly) return anonymousInitializer.compose()
-        return withLocalScopeCleanup {
+        return withPrimaryConstructorParameters(includeProperties = false) {
             dataFlowAnalyzer.enterInitBlock(anonymousInitializer)
-            addLocalScope(
-                context.getPrimaryConstructorPureParametersScope()
-            )
             addNewLocalScope()
             val result =
                 transformDeclarationContent(anonymousInitializer, ResolutionMode.ContextIndependent).single as FirAnonymousInitializer
